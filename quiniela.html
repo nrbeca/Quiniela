@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Quiniela 2026 ⚽</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#F3F4F6;font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh}
+  input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none}
+  input[type=number]{-moz-appearance:textfield}
+  ::-webkit-scrollbar{height:4px;width:4px}
+  ::-webkit-scrollbar-track{background:#F3F4F6}
+  ::-webkit-scrollbar-thumb{background:#D1D5DB;border-radius:4px}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+// ══════════════════════════════════════════════════════════
+// 📅 PARTIDOS — Agrega más aquí cuando avance la siguiente fase
+// Formato: { id, nombre, equipo1, equipo2, fecha }
+// fecha: new Date("YYYY-MM-DDTHH:MM:00") hora México central (UTC-6)
+// ══════════════════════════════════════════════════════════
+const PARTIDOS = [
+  { id:1,  nombre:"Chile vs Honduras",         equipo1:"Chile",          equipo2:"Honduras",      fecha: new Date("2026-06-15T19:00:00") },
+  { id:2,  nombre:"Estados Unidos vs Turquía",  equipo1:"Estados Unidos", equipo2:"Turquía",       fecha: new Date("2026-06-17T19:00:00") },
+  { id:3,  nombre:"Colombia vs Portugal",       equipo1:"Colombia",       equipo2:"Portugal",      fecha: new Date("2026-06-19T11:00:00") },
+  { id:4,  nombre:"Paraguay vs Australia",      equipo1:"Paraguay",       equipo2:"Australia",     fecha: new Date("2026-06-20T12:00:00") },
+  { id:5,  nombre:"Argentina vs Austria",       equipo1:"Argentina",      equipo2:"Austria",       fecha: new Date("2026-06-22T11:00:00") },
+  { id:6,  nombre:"Noruega vs Senegal",         equipo1:"Noruega",        equipo2:"Senegal",       fecha: new Date("2026-06-22T16:00:00") },
+  { id:7,  nombre:"Inglaterra vs Ghana",        equipo1:"Inglaterra",     equipo2:"Ghana",         fecha: new Date("2026-06-23T14:00:00") },
+  { id:8,  nombre:"Croacia vs Panamá",          equipo1:"Croacia",        equipo2:"Panamá",        fecha: new Date("2026-06-23T20:00:00") },
+  { id:9,  nombre:"Francia vs Noruega",         equipo1:"Francia",        equipo2:"Noruega",       fecha: new Date("2026-06-26T14:00:00") },
+  { id:10, nombre:"Uruguay vs España",          equipo1:"Uruguay",        equipo2:"España",        fecha: new Date("2026-06-26T21:00:00") },
+  // ── FASE SIGUIENTE ─────────────────────────────────────────
+  // Descomenta y llena cuando tengas los partidos:
+  // { id:11, nombre:"Equipo A vs Equipo B", equipo1:"Equipo A", equipo2:"Equipo B", fecha: new Date("2026-07-01T18:00:00") },
+];
+
+// ══════════════════════════════════════════════════════════
+const USUARIOS = ["Estrella","Sandra","Hary","Rodrigo","Marco","Antonio","Rebeca"];
+const EMOJIS   = {Estrella:"⭐",Sandra:"🌸",Hary:"🎯",Rodrigo:"🦅",Marco:"🔥",Antonio:"⚡",Rebeca:"👑"};
+const COLORES  = {Estrella:"#7C3AED",Sandra:"#DB2777",Hary:"#059669",Rodrigo:"#D97706",Marco:"#DC2626",Antonio:"#2563EB",Rebeca:"#0891B2"};
+const ADMIN_PASS = "sader2026";
+
+// ── Puntos ─────────────────────────────────────────────────
+function calcularPuntos(pg1,pg2,rg1,rg2){
+  const [p1,p2,r1,r2]=[parseInt(pg1),parseInt(pg2),parseInt(rg1),parseInt(rg2)];
+  if([p1,p2,r1,r2].some(isNaN)) return null;
+  if(p1===r1&&p2===r2) return 4;
+  const dp=p1-p2, dr=r1-r2;
+  if(dp===dr&&dr!==0) return 3;
+  const gp=p1>p2?"1":p1<p2?"2":"X", gr=r1>r2?"1":r1<r2?"2":"X";
+  if(gr==="X"&&gp==="X") return 2;
+  if(gp===gr) return 1;
+  return 0;
+}
+
+// ── Storage keys ───────────────────────────────────────────
+const KP=(u,id)=>`q26_pred_${u}_${id}`;
+const KR=(id)=>`q26_real_${id}`;
+const KL=(u,id)=>`q26_lock_${u}_${id}`;
+
+function lsGet(k){try{const v=localStorage.getItem(k);return v?JSON.parse(v):null}catch{return null}}
+function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}
+
+// ── Helpers ────────────────────────────────────────────────
+const fmtFecha=d=>d.toLocaleDateString("es-MX",{weekday:"short",day:"numeric",month:"short"});
+const fmtHora =d=>d.toLocaleTimeString("es-MX",{hour:"2-digit",minute:"2-digit"});
+
+function tiempoRestante(fecha,ahora){
+  const diff=fecha-ahora;
+  if(diff<=0) return null;
+  const h=Math.floor(diff/3600000), m=Math.floor((diff%3600000)/60000);
+  return{diff, texto: h>0?`${h}h ${m}m`:`${m} min`};
+}
+
+// ══════════════════════════════════════════════════════════
+// COMPONENTE RAÍZ
+// ══════════════════════════════════════════════════════════
+function App(){
+  const [vista,setVista]=useState("inicio");
+  const [usuario,setUsuario]=useState(null);
+  const [preds,setPreds]=useState({});
+  const [reales,setReales]=useState({});
+  const [locks,setLocks]=useState({});
+  const [ahora,setAhora]=useState(new Date());
+  const [notif,setNotif]=useState(null);
+
+  useEffect(()=>{
+    const t=setInterval(()=>setAhora(new Date()),30000);
+    return()=>clearInterval(t);
+  },[]);
+
+  useEffect(()=>{
+    const p={},r={},l={};
+    PARTIDOS.forEach(pt=>{
+      const rv=lsGet(KR(pt.id));
+      if(rv) r[KR(pt.id)]=rv;
+      USUARIOS.forEach(u=>{
+        const pv=lsGet(KP(u,pt.id));
+        if(pv) p[KP(u,pt.id)]=pv;
+        if(lsGet(KL(u,pt.id))) l[KL(u,pt.id)]=true;
+      });
+    });
+    setPreds(p); setReales(r); setLocks(l);
+  },[]);
+
+  function toast(msg,tipo="ok"){
+    setNotif({msg,tipo});
+    setTimeout(()=>setNotif(null),3000);
+  }
+
+  function guardarPred(u,id,g1,g2){
+    const kp=KP(u,id),kl=KL(u,id),val={g1,g2};
+    lsSet(kp,val); lsSet(kl,true);
+    setPreds(p=>({...p,[kp]:val}));
+    setLocks(l=>({...l,[kl]:true}));
+    toast("✅ Predicción guardada y bloqueada");
+  }
+
+  function guardarReal(id,g1,g2){
+    const kr=KR(id),val={g1,g2};
+    lsSet(kr,val);
+    setReales(r=>({...r,[kr]:val}));
+    toast("✅ Resultado guardado");
+  }
+
+  function calcTabla(){
+    return USUARIOS.map(u=>{
+      let pts=0,j=0,ex=0,gan=0;
+      PARTIDOS.forEach(p=>{
+        const pred=preds[KP(u,p.id)], real=reales[KR(p.id)];
+        if(pred&&real){
+          const pt=calcularPuntos(pred.g1,pred.g2,real.g1,real.g2);
+          if(pt!==null){j++;pts+=pt;if(pt===4)ex++;if(pt>=1)gan++;}
+        }
+      });
+      return{u,pts,j,ex,gan};
+    }).sort((a,b)=>b.pts-a.pts||b.ex-a.ex||b.gan-a.gan);
+  }
+
+  if(vista==="inicio") return <Inicio tabla={calcTabla()} onPerfil={u=>{setUsuario(u);setVista("perfil")}} onAdmin={()=>setVista("admin")} notif={notif}/>;
+  if(vista==="perfil") return <Perfil usuario={usuario} ahora={ahora} preds={preds} reales={reales} locks={locks} onGuardar={guardarPred} onVolver={()=>setVista("inicio")} notif={notif}/>;
+  if(vista==="admin")  return <Admin ahora={ahora} preds={preds} reales={reales} locks={locks} onGuardarReal={guardarReal} onVolver={()=>setVista("inicio")} tabla={calcTabla()} notif={notif} toast={toast}/>;
+  return null;
+}
+
+// ══════════════════════════════════════════════════════════
+// INICIO
+// ══════════════════════════════════════════════════════════
+function Inicio({tabla,onPerfil,onAdmin,notif}){
+  const medals=["🥇","🥈","🥉"];
+  return(
+    <div className="page">
+      {notif&&<Toast {...notif}/>}
+      <header className="hdr">
+        <div className="hdr-inner">
+          <span className="hdr-logo">⚽</span>
+          <div className="hdr-text">
+            <h1 className="hdr-title">QUINIELA 2026</h1>
+            <p className="hdr-sub">Copa del Mundo · Ronda de 16</p>
+          </div>
+          <button className="icon-btn" onClick={onAdmin} title="Admin">⚙️</button>
+        </div>
+      </header>
+
+      <main className="ctn">
+        {/* TABLA */}
+        <div className="card">
+          <h2 className="card-title">🏆 Clasificación</h2>
+          <div style={{overflowX:"auto"}}>
+            <table className="tbl">
+              <thead><tr>
+                <th>#</th><th style={{textAlign:"left"}}>Jugador</th>
+                <th>Pts</th><th>J</th><th>🎯</th><th>✅</th>
+              </tr></thead>
+              <tbody>
+                {tabla.map(({u,pts,j,ex,gan},i)=>(
+                  <tr key={u} style={{background:i===0?"#FFFBEB":i%2===0?"white":"#F9FAFB"}}>
+                    <td style={{textAlign:"center",fontSize:18}}>{medals[i]||i+1}</td>
+                    <td>
+                      <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 4px"}}>
+                        <span className="av" style={{background:COLORES[u]}}>{EMOJIS[u]}</span>
+                        <span style={{fontWeight:600}}>{u}</span>
+                      </div>
+                    </td>
+                    <td style={{textAlign:"center",fontWeight:800,fontSize:20,color:COLORES[u]}}>{pts}</td>
+                    <td style={{textAlign:"center",color:"#6B7280"}}>{j}</td>
+                    <td style={{textAlign:"center",color:"#6B7280"}}>{ex}</td>
+                    <td style={{textAlign:"center",color:"#6B7280"}}>{gan}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p style={{fontSize:11,color:"#9CA3AF",textAlign:"center",marginTop:8}}>Pts · J=Jugados · 🎯=Marcador exacto · ✅=Ganador correcto</p>
+        </div>
+
+        {/* PUNTOS */}
+        <div className="card">
+          <h2 className="card-title">📋 Sistema de Puntos</h2>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {[["4 pts","🎯","Marcador exacto","#059669"],
+              ["3 pts","📐","Diferencia de goles correcta","#2563EB"],
+              ["2 pts","🤝","Empate correcto (sin marcador exacto)","#7C3AED"],
+              ["1 pt", "✅","Ganador correcto","#D97706"],
+              ["0 pts","❌","Ganador incorrecto","#DC2626"]
+            ].map(([p,i,d,c])=>(
+              <div key={p} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:"#F9FAFB",borderRadius:8,borderLeft:`4px solid ${c}`}}>
+                <span style={{background:c,color:"white",fontWeight:700,fontSize:12,padding:"2px 8px",borderRadius:12,flexShrink:0}}>{p}</span>
+                <span style={{fontSize:16,flexShrink:0}}>{i}</span>
+                <span style={{fontSize:13,color:"#374151"}}>{d}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* PERFILES */}
+        <div className="card">
+          <h2 className="card-title">👤 Selecciona tu Perfil</h2>
+          <p style={{fontSize:13,color:"#6B7280",marginBottom:14}}>Entra a tu perfil para meter tus predicciones</p>
+          <div className="perfiles-grid">
+            {USUARIOS.map(u=>(
+              <button key={u} className="perfil-btn" style={{borderColor:COLORES[u]}} onClick={()=>onPerfil(u)}>
+                <span className="perfil-av" style={{background:COLORES[u]}}>{EMOJIS[u]}</span>
+                <span style={{fontWeight:600,fontSize:14,color:"#1F2937"}}>{u}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════
+// PERFIL
+// ══════════════════════════════════════════════════════════
+function Perfil({usuario,ahora,preds,reales,locks,onGuardar,onVolver,notif}){
+  const [inputs,setInputs]=useState({});
+  const [confirmando,setConfirmando]=useState(null);
+  const [tab,setTab]=useState("pred");
+  const color=COLORES[usuario], emoji=EMOJIS[usuario];
+
+  const pendientes=PARTIDOS.filter(p=>{
+    const tr=tiempoRestante(p.fecha,ahora);
+    return !locks[KL(usuario,p.id)] && tr && tr.diff>12*3600000;
+  });
+  const cerrados=PARTIDOS.filter(p=>{
+    const tr=tiempoRestante(p.fecha,ahora);
+    return !locks[KL(usuario,p.id)] && (!tr || tr.diff<=12*3600000);
+  });
+  const guardados=PARTIDOS.filter(p=>locks[KL(usuario,p.id)]&&!reales[KR(p.id)]);
+  const jugados=PARTIDOS.filter(p=>preds[KP(usuario,p.id)]&&reales[KR(p.id)]);
+
+  const totalPts=jugados.reduce((acc,p)=>{
+    const pred=preds[KP(usuario,p.id)],real=reales[KR(p.id)];
+    return acc+(calcularPuntos(pred?.g1,pred?.g2,real?.g1,real?.g2)||0);
+  },0);
+
+  function setInp(id,campo,val){setInputs(prev=>({...prev,[id]:{...(prev[id]||{}),[campo]:val}}))}
+  function tryGuardar(p){
+    const inp=inputs[p.id]||{};
+    if(inp.g1===""||inp.g1===undefined||inp.g2===""||inp.g2===undefined) return;
+    setConfirmando(p);
+  }
+  function confirmar(){
+    const inp=inputs[confirmando.id]||{};
+    onGuardar(usuario,confirmando.id,inp.g1,inp.g2);
+    setConfirmando(null);
+  }
+
+  const tabs=[["pred",`⏳ Para predecir (${pendientes.length})`],["lock",`🔒 Guardadas (${guardados.length})`],["res",`🏁 Resultados (${jugados.length})`]];
+
+  return(
+    <div className="page">
+      {notif&&<Toast {...notif}/>}
+      {confirmando&&(
+        <div className="overlay">
+          <div className="modal">
+            <h3 style={{marginBottom:8}}>¿Confirmar predicción?</h3>
+            <p style={{color:"#6B7280",marginBottom:12,fontSize:14}}>{confirmando.nombre}</p>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"#F9FAFB",borderRadius:8,padding:"12px 16px",margin:"0 0 12px"}}>
+              <span style={{fontWeight:700,fontSize:13,flex:1}}>{confirmando.equipo1}</span>
+              <span style={{fontWeight:900,fontSize:22,color:color,margin:"0 12px"}}>{inputs[confirmando.id]?.g1} — {inputs[confirmando.id]?.g2}</span>
+              <span style={{fontWeight:700,fontSize:13,flex:1,textAlign:"right"}}>{confirmando.equipo2}</span>
+            </div>
+            <p style={{color:"#EF4444",fontSize:12,marginBottom:16}}>⚠️ Una vez guardado no podrás modificarlo y quedará oculto para los demás.</p>
+            <div style={{display:"flex",gap:10}}>
+              <button className="btn-sec" onClick={()=>setConfirmando(null)}>Cancelar</button>
+              <button className="btn-pri" style={{background:color}} onClick={confirmar}>Confirmar ✓</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <header className="hdr" style={{background:`linear-gradient(135deg,${color} 0%,${color}bb 100%)`}}>
+        <div className="hdr-inner">
+          <button className="back-btn" onClick={onVolver}>← Volver</button>
+          <div style={{textAlign:"center",flex:1}}>
+            <div style={{fontSize:38,lineHeight:1,marginBottom:2}}>{emoji}</div>
+            <h1 className="hdr-title" style={{fontSize:20}}>{usuario}</h1>
+            <p className="hdr-sub">{totalPts} puntos · {jugados.length} partidos jugados</p>
+          </div>
+          <div style={{width:72}}/>
+        </div>
+      </header>
+
+      <main className="ctn">
+        <div className="tabs">
+          {tabs.map(([k,l])=>(
+            <button key={k} className={`tab${tab===k?" tab-on":""}`} style={tab===k?{borderColor:color,color}:{}} onClick={()=>setTab(k)}>{l}</button>
+          ))}
+        </div>
+
+        {/* PENDIENTES */}
+        {tab==="pred"&&(
+          <>
+            {pendientes.length===0&&cerrados.length===0&&<Empty txt="No hay partidos pendientes ✅"/>}
+            {pendientes.map(p=>{
+              const tr=tiempoRestante(p.fecha,ahora);
+              const inp=inputs[p.id]||{};
+              const ok=inp.g1!==undefined&&inp.g1!==""&&inp.g2!==undefined&&inp.g2!=="";
+              const urgente=tr&&tr.diff<24*3600000;
+              return(
+                <div key={p.id} className="pcard" style={{borderLeftColor:color}}>
+                  <div className="pmeta">
+                    <span className="tag tag-blue">{fmtFecha(p.fecha)} {fmtHora(p.fecha)}</span>
+                    {urgente&&<span className="tag" style={{background:tr.diff<3600000?"#FEE2E2":"#FEF3C7",color:tr.diff<3600000?"#DC2626":"#92400E"}}>⏰ {tr.texto} restantes</span>}
+                  </div>
+                  <div className="equipos">
+                    <span className="eq">{p.equipo1}</span>
+                    <span className="vs">VS</span>
+                    <span className="eq">{p.equipo2}</span>
+                  </div>
+                  <div className="inp-row">
+                    <input type="number" min="0" max="20" placeholder="0" value={inp.g1||""} onChange={e=>setInp(p.id,"g1",e.target.value)} className="ginp"/>
+                    <span style={{fontWeight:800,fontSize:18,color:"#9CA3AF"}}>—</span>
+                    <input type="number" min="0" max="20" placeholder="0" value={inp.g2||""} onChange={e=>setInp(p.id,"g2",e.target.value)} className="ginp"/>
+                    <button className="btn-pri" style={{background:ok?color:"#D1D5DB",cursor:ok?"pointer":"not-allowed"}} disabled={!ok} onClick={()=>tryGuardar(p)}>Guardar 🔒</button>
+                  </div>
+                </div>
+              );
+            })}
+            {cerrados.map(p=>(
+              <div key={p.id} className="pcard" style={{borderLeftColor:"#9CA3AF",opacity:0.7}}>
+                <div className="pmeta">
+                  <span className="tag tag-blue">{fmtFecha(p.fecha)} {fmtHora(p.fecha)}</span>
+                  <span className="tag tag-red">🚫 Tiempo cerrado</span>
+                </div>
+                <div className="equipos">
+                  <span className="eq">{p.equipo1}</span>
+                  <span className="vs">VS</span>
+                  <span className="eq">{p.equipo2}</span>
+                </div>
+                <p style={{fontSize:13,color:"#9CA3AF",marginTop:4,fontStyle:"italic"}}>El plazo para predecir este partido ha cerrado.</p>
+              </div>
+            ))}
+          </>
+        )}
+
+        {/* GUARDADAS */}
+        {tab==="lock"&&(
+          <>
+            {guardados.length===0&&<Empty txt="No hay predicciones esperando resultado"/>}
+            {guardados.map(p=>{
+              const pred=preds[KP(usuario,p.id)];
+              return(
+                <div key={p.id} className="pcard" style={{borderLeftColor:"#7C3AED"}}>
+                  <div className="pmeta">
+                    <span className="tag tag-blue">{fmtFecha(p.fecha)}</span>
+                    <span className="tag" style={{background:"#EDE9FE",color:"#7C3AED"}}>🔒 Predicción guardada</span>
+                  </div>
+                  <div className="equipos">
+                    <span className="eq">{p.equipo1}</span>
+                    <span className="vs">VS</span>
+                    <span className="eq">{p.equipo2}</span>
+                  </div>
+                  <div style={{background:"#F9FAFB",borderRadius:8,padding:"8px 12px",marginTop:8,fontSize:13}}>
+                    Tu predicción: <strong style={{fontSize:16}}>{pred?.g1} — {pred?.g2}</strong>
+                    <span style={{marginLeft:8,color:"#9CA3AF",fontSize:12}}>Esperando resultado oficial…</span>
+                  </div>
+                </div>
+              );
+            })}
+          </>
+        )}
+
+        {/* RESULTADOS */}
+        {tab==="res"&&(
+          <>
+            {jugados.length===0&&<Empty txt="Aún no hay partidos con resultado"/>}
+            {jugados.map(p=>{
+              const pred=preds[KP(usuario,p.id)], real=reales[KR(p.id)];
+              const pts=calcularPuntos(pred?.g1,pred?.g2,real?.g1,real?.g2);
+              const pc=pts===4?"#059669":pts===3?"#2563EB":pts===2?"#7C3AED":pts===1?"#D97706":"#DC2626";
+              const pl=pts===4?"Marcador exacto 🎯":pts===3?"Diferencia correcta 📐":pts===2?"Empate correcto 🤝":pts===1?"Ganador correcto ✅":"Incorrecto ❌";
+              return(
+                <div key={p.id} className="pcard" style={{borderLeftColor:pc}}>
+                  <div className="pmeta">
+                    <span className="tag tag-blue">{fmtFecha(p.fecha)}</span>
+                    <span className="tag" style={{background:pc,color:"white"}}>{pts} pts</span>
+                    <span style={{fontSize:11,color:pc,fontWeight:600}}>{pl}</span>
+                  </div>
+                  <div className="equipos">
+                    <span className="eq">{p.equipo1}</span>
+                    <span className="vs">VS</span>
+                    <span className="eq">{p.equipo2}</span>
+                  </div>
+                  <div style={{display:"flex",gap:12,marginTop:10}}>
+                    <div style={{flex:1,background:"#F9FAFB",borderRadius:8,padding:"10px",textAlign:"center"}}>
+                      <p style={{fontSize:11,color:"#9CA3AF",marginBottom:4}}>Tu predicción</p>
+                      <p style={{fontWeight:800,fontSize:22,color:"#6B7280"}}>{pred?.g1} — {pred?.g2}</p>
+                    </div>
+                    <div style={{flex:1,background:"#F0FDF4",borderRadius:8,padding:"10px",textAlign:"center"}}>
+                      <p style={{fontSize:11,color:"#9CA3AF",marginBottom:4}}>Resultado real</p>
+                      <p style={{fontWeight:800,fontSize:22,color:"#111827"}}>{real?.g1} — {real?.g2}</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </>
+        )}
+      </main>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════
+// ADMIN
+// ══════════════════════════════════════════════════════════
+function Admin({ahora,preds,reales,locks,onGuardarReal,onVolver,tabla,notif,toast}){
+  const [pass,setPass]=useState("");
+  const [ok,setOk]=useState(false);
+  const [tab,setTab]=useState("res");
+  const [rinps,setRinps]=useState({});
+  const [buscar,setBuscar]=useState("");
+
+  function setR(id,campo,val){setRinps(p=>({...p,[id]:{...(p[id]||{}),[campo]:val}}))}
+
+  if(!ok) return(
+    <div className="page">
+      <header className="hdr" style={{background:"linear-gradient(135deg,#1F2937,#374151)"}}>
+        <div className="hdr-inner">
+          <button className="back-btn" onClick={onVolver}>← Volver</button>
+          <h1 className="hdr-title" style={{flex:1,textAlign:"center"}}>Admin</h1>
+          <div style={{width:72}}/>
+        </div>
+      </header>
+      <main className="ctn" style={{display:"flex",justifyContent:"center",paddingTop:48}}>
+        <div className="card" style={{maxWidth:320,width:"100%",textAlign:"center"}}>
+          <div style={{fontSize:48,marginBottom:16}}>🔐</div>
+          <h2 style={{marginBottom:16}}>Acceso Administrador</h2>
+          <input type="password" placeholder="Contraseña" value={pass} onChange={e=>setPass(e.target.value)}
+            onKeyDown={e=>e.key==="Enter"&&(pass===ADMIN_PASS?setOk(true):toast("Contraseña incorrecta","err"))}
+            style={{width:"100%",padding:"10px 14px",fontSize:16,border:"2px solid #E5E7EB",borderRadius:8,marginBottom:12,outline:"none"}}/>
+          <button className="btn-pri" style={{width:"100%",background:"#1F2937",justifyContent:"center"}}
+            onClick={()=>pass===ADMIN_PASS?setOk(true):toast("Contraseña incorrecta","err")}>Entrar</button>
+          <p style={{marginTop:10,fontSize:12,color:"#9CA3AF"}}>Contraseña: sader2026</p>
+        </div>
+      </main>
+    </div>
+  );
+
+  const ptabs=[["res","📊 Resultados"],["rank","🏆 Ranking"],["spy","👁️ Predicciones"]];
+  const pf=PARTIDOS.filter(p=>!buscar||p.nombre.toLowerCase().includes(buscar.toLowerCase()));
+
+  return(
+    <div className="page">
+      {notif&&<Toast {...notif}/>}
+      <header className="hdr" style={{background:"linear-gradient(135deg,#1F2937,#374151)"}}>
+        <div className="hdr-inner">
+          <button className="back-btn" onClick={onVolver}>← Volver</button>
+          <h1 className="hdr-title" style={{flex:1,textAlign:"center"}}>⚙️ Admin</h1>
+          <div style={{width:72}}/>
+        </div>
+      </header>
+      <main className="ctn">
+        <div className="tabs">
+          {ptabs.map(([k,l])=>(
+            <button key={k} className={`tab${tab===k?" tab-on":""}`} style={tab===k?{borderColor:"#1F2937",color:"#1F2937"}:{}} onClick={()=>setTab(k)}>{l}</button>
+          ))}
+        </div>
+
+        {(tab==="res"||tab==="spy")&&(
+          <input placeholder="🔍 Buscar partido…" value={buscar} onChange={e=>setBuscar(e.target.value)}
+            style={{width:"100%",padding:"10px 14px",fontSize:14,border:"2px solid #E5E7EB",borderRadius:8,marginBottom:12,outline:"none"}}/>
+        )}
+
+        {tab==="res"&&pf.map(p=>{
+          const real=reales[KR(p.id)], inp=rinps[p.id]||{};
+          const hasinp=inp.g1!==undefined&&inp.g1!==""&&inp.g2!==undefined&&inp.g2!=="";
+          return(
+            <div key={p.id} className="pcard" style={{borderLeftColor:real?"#059669":"#D1D5DB"}}>
+              <div className="pmeta">
+                <span className="tag tag-blue">{fmtFecha(p.fecha)}</span>
+                {real&&<span className="tag" style={{background:"#D1FAE5",color:"#059669"}}>✅ Ingresado: {real.g1}–{real.g2}</span>}
+              </div>
+              <div className="equipos">
+                <span className="eq">{p.equipo1}</span>
+                <span className="vs">VS</span>
+                <span className="eq">{p.equipo2}</span>
+              </div>
+              <div className="inp-row">
+                <input type="number" min="0" max="20" placeholder={real?.g1??"0"} value={inp.g1||""} onChange={e=>setR(p.id,"g1",e.target.value)} className="ginp"/>
+                <span style={{fontWeight:800,fontSize:18,color:"#9CA3AF"}}>—</span>
+                <input type="number" min="0" max="20" placeholder={real?.g2??"0"} value={inp.g2||""} onChange={e=>setR(p.id,"g2",e.target.value)} className="ginp"/>
+                <button className="btn-pri" style={{background:hasinp?"#1F2937":"#D1D5DB",cursor:hasinp?"pointer":"not-allowed"}} disabled={!hasinp}
+                  onClick={()=>hasinp&&onGuardarReal(p.id,inp.g1,inp.g2)}>
+                  {real?"Actualizar":"Guardar"}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+
+        {tab==="rank"&&(
+          <div className="card">
+            <h2 className="card-title">🏆 Clasificación Completa</h2>
+            {tabla.map(({u,pts,j,ex,gan},i)=>(
+              <div key={u} style={{display:"flex",alignItems:"center",gap:10,padding:"12px 10px",borderRadius:10,marginBottom:6,background:i===0?"#FFFBEB":"#F9FAFB",border:"1px solid #F3F4F6"}}>
+                <span style={{fontSize:22,width:32,textAlign:"center"}}>{["🥇","🥈","🥉"][i]||`${i+1}°`}</span>
+                <span className="av" style={{background:COLORES[u]}}>{EMOJIS[u]}</span>
+                <span style={{flex:1,fontWeight:600}}>{u}</span>
+                <span style={{fontWeight:800,fontSize:22,color:COLORES[u]}}>{pts}</span>
+                <span style={{color:"#9CA3AF",fontSize:12}}>pts · {j}J · {ex}🎯</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {tab==="spy"&&pf.map(p=>{
+          const real=reales[KR(p.id)];
+          return(
+            <div key={p.id} className="card" style={{marginBottom:12}}>
+              <p style={{fontWeight:700,marginBottom:4}}>{p.nombre}</p>
+              <p style={{fontSize:12,color:"#6B7280",marginBottom:real?4:10}}>{fmtFecha(p.fecha)} {fmtHora(p.fecha)}</p>
+              {real&&<p style={{color:"#059669",fontWeight:600,marginBottom:8,fontSize:14}}>Resultado: {real.g1} — {real.g2}</p>}
+              <table style={{width:"100%",fontSize:13,borderCollapse:"collapse"}}>
+                <thead><tr style={{background:"#F9FAFB"}}>
+                  <th style={{padding:"6px 8px",textAlign:"left",borderBottom:"2px solid #E5E7EB",fontWeight:600,color:"#6B7280",fontSize:11}}>Usuario</th>
+                  <th style={{padding:"6px 8px",textAlign:"center",borderBottom:"2px solid #E5E7EB",fontWeight:600,color:"#6B7280",fontSize:11}}>Predicción</th>
+                  <th style={{padding:"6px 8px",textAlign:"center",borderBottom:"2px solid #E5E7EB",fontWeight:600,color:"#6B7280",fontSize:11}}>Pts</th>
+                </tr></thead>
+                <tbody>
+                  {USUARIOS.map(u=>{
+                    const pred=preds[KP(u,p.id)];
+                    const lk=locks[KL(u,p.id)];
+                    const pts=pred&&real?calcularPuntos(pred.g1,pred.g2,real.g1,real.g2):null;
+                    const pc=pts===4?"#059669":pts===3?"#2563EB":pts===2?"#7C3AED":pts===1?"#D97706":"#DC2626";
+                    return(
+                      <tr key={u} style={{borderBottom:"1px solid #F3F4F6"}}>
+                        <td style={{padding:"8px"}}>
+                          <div style={{display:"flex",alignItems:"center",gap:6}}>
+                            <span className="av" style={{background:COLORES[u],width:22,height:22,fontSize:12}}>{EMOJIS[u]}</span>
+                            {u}
+                          </div>
+                        </td>
+                        <td style={{textAlign:"center",fontWeight:700}}>
+                          {pred?`${pred.g1} — ${pred.g2}`:lk?<span style={{color:"#9CA3AF",fontSize:12}}>Oculta 🔒</span>:<span style={{color:"#D1D5DB"}}>—</span>}
+                        </td>
+                        <td style={{textAlign:"center"}}>
+                          {pts!==null?<span style={{fontWeight:800,color:pc}}>{pts}</span>:"—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          );
+        })}
+      </main>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════════════════════════
+function Toast({msg,tipo}){
+  return(
+    <div style={{position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",
+      background:tipo==="err"?"#FEE2E2":"#D1FAE5",color:tipo==="err"?"#DC2626":"#059669",
+      padding:"10px 20px",borderRadius:8,fontWeight:600,boxShadow:"0 4px 16px rgba(0,0,0,0.15)",
+      zIndex:9999,fontSize:14,whiteSpace:"nowrap",pointerEvents:"none"}}>
+      {msg}
+    </div>
+  );
+}
+function Empty({txt}){
+  return <div style={{textAlign:"center",color:"#9CA3AF",padding:"40px 0",fontSize:14}}>{txt}</div>;
+}
+
+// ══════════════════════════════════════════════════════════
+// CSS
+// ══════════════════════════════════════════════════════════
+const css=`
+.page{min-height:100vh;background:#F3F4F6}
+.hdr{background:linear-gradient(135deg,#1D4ED8,#3B82F6);color:white;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.2)}
+.hdr-inner{max-width:680px;margin:0 auto;padding:12px 16px;display:flex;align-items:center;gap:12px}
+.hdr-logo{font-size:32px;line-height:1}
+.hdr-title{font-size:20px;font-weight:800;letter-spacing:-.5px;margin:0}
+.hdr-sub{font-size:12px;opacity:.85;margin:0}
+.icon-btn{background:rgba(255,255,255,.2);border:none;border-radius:8px;padding:6px 10px;cursor:pointer;font-size:16px;color:white}
+.back-btn{background:rgba(255,255,255,.2);border:none;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13px;color:white;font-weight:600;flex-shrink:0}
+.ctn{max-width:680px;margin:0 auto;padding:16px 12px}
+.card{background:white;border-radius:12px;padding:16px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.card-title{margin:0 0 12px;font-size:16px;font-weight:700;color:#111827}
+.tbl{width:100%;border-collapse:collapse;font-size:14px}
+.tbl th{padding:8px 10px;text-align:center;font-weight:600;color:#6B7280;border-bottom:2px solid #E5E7EB;font-size:12px;white-space:nowrap}
+.tbl td{border-bottom:1px solid #F3F4F6}
+.av{width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.perfiles-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
+.perfil-btn{background:white;border:2px solid;border-radius:12px;padding:14px 8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;box-shadow:0 1px 3px rgba(0,0,0,.1);transition:transform .1s}
+.perfil-btn:hover{transform:translateY(-2px)}
+.perfil-av{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;color:white}
+.tabs{display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;padding-bottom:4px}
+.tab{background:white;border:2px solid #E5E7EB;border-radius:20px;padding:6px 14px;cursor:pointer;font-size:12px;font-weight:600;color:#6B7280;white-space:nowrap;flex-shrink:0;transition:all .15s}
+.tab-on{font-weight:700}
+.pcard{background:white;border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.08);border-left:4px solid #E5E7EB}
+.pmeta{display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap}
+.tag{font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px}
+.tag-blue{background:#EFF6FF;color:#2563EB}
+.tag-red{background:#FEE2E2;color:#DC2626}
+.equipos{display:flex;align-items:center;justify-content:space-between;margin:10px 0}
+.eq{font-weight:700;font-size:14px;color:#111827;text-align:center;flex:1;line-height:1.2}
+.vs{background:#1D4ED8;color:white;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:800;flex-shrink:0;margin:0 8px}
+.inp-row{display:flex;align-items:center;gap:8px;margin-top:10px}
+.ginp{width:54px;text-align:center;border:2px solid #E5E7EB;border-radius:8px;padding:8px 4px;font-size:20px;font-weight:700;outline:none}
+.ginp:focus{border-color:#3B82F6}
+.btn-pri{color:white;border:none;border-radius:8px;padding:8px 14px;cursor:pointer;font-weight:700;font-size:13px;flex-shrink:0;display:flex;align-items:center;gap:4px}
+.btn-sec{background:#F3F4F6;color:#374151;border:none;border-radius:8px;padding:8px 14px;cursor:pointer;font-weight:600;font-size:13px;flex:1}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px}
+.modal{background:white;border-radius:16px;padding:24px;max-width:360px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+`;
+
+const styleEl=document.createElement("style");
+styleEl.textContent=css;
+document.head.appendChild(styleEl);
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
