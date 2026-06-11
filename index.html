@@ -55,7 +55,6 @@ function calcularPuntos(pg1,pg2,rg1,rg2){
   if([p1,p2,r1,r2].some(isNaN)) return null;
   if(p1===r1&&p2===r2) return 4;
   const dp=p1-p2, dr=r1-r2;
-  if(dp===dr&&dr!==0) return 3;
   const gp=p1>p2?"1":p1<p2?"2":"X", gr=r1>r2?"1":r1<r2?"2":"X";
   if(gr==="X"&&gp==="X") return 2;
   if(gp===gr) return 1;
@@ -208,7 +207,6 @@ function Inicio({tabla,onPerfil,onAdmin,notif}){
           <h2 className="card-title">📋 Sistema de Puntos</h2>
           <div style={{display:"flex",flexDirection:"column",gap:8}}>
             {[["4 pts","🎯","Marcador exacto","#059669"],
-              ["3 pts","","Diferencia de goles correcta","#2563EB"],
               ["2 pts","","Empate correcto (sin marcador exacto)","#7C3AED"],
               ["1 pt", "✅","Ganador correcto","#D97706"],
               ["0 pts","❌","Ganador incorrecto","#DC2626"]
