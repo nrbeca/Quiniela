@@ -45,7 +45,7 @@ const PARTIDOS = [
 
 // ══════════════════════════════════════════════════════════
 const USUARIOS = ["Estrella","Sandra","Hary","Rodrigo","Marco","Antonio","Rebeca"];
-const EMOJIS   = {Estrella:"⭐",Sandra:"🌸",Hary:"🎯",Rodrigo:"🦅",Marco:"🔥",Antonio:"⚡",Rebeca:"👑"};
+const EMOJIS   = {Estrella:"⭐",Sandra:"🌸",Hary:"🦁",Rodrigo:"🦅",Marco:"🔥",Antonio:"⚡",Rebeca:"🍀"};
 const COLORES  = {Estrella:"#7C3AED",Sandra:"#DB2777",Hary:"#059669",Rodrigo:"#D97706",Marco:"#DC2626",Antonio:"#2563EB",Rebeca:"#0891B2"};
 const ADMIN_PASS = "sader2026";
 
@@ -129,7 +129,7 @@ function App(){
     const kr=KR(id),val={g1,g2};
     lsSet(kr,val);
     setReales(r=>({...r,[kr]:val}));
-    toast("✅ Resultado guardado");
+    toast("Resultado guardado");
   }
 
   function calcTabla(){
@@ -208,8 +208,8 @@ function Inicio({tabla,onPerfil,onAdmin,notif}){
           <h2 className="card-title">📋 Sistema de Puntos</h2>
           <div style={{display:"flex",flexDirection:"column",gap:8}}>
             {[["4 pts","🎯","Marcador exacto","#059669"],
-              ["3 pts","📐","Diferencia de goles correcta","#2563EB"],
-              ["2 pts","🤝","Empate correcto (sin marcador exacto)","#7C3AED"],
+              ["3 pts","","Diferencia de goles correcta","#2563EB"],
+              ["2 pts","","Empate correcto (sin marcador exacto)","#7C3AED"],
               ["1 pt", "✅","Ganador correcto","#D97706"],
               ["0 pts","❌","Ganador incorrecto","#DC2626"]
             ].map(([p,i,d,c])=>(
@@ -353,7 +353,7 @@ function Perfil({usuario,ahora,preds,reales,locks,onGuardar,onVolver,notif}){
               <div key={p.id} className="pcard" style={{borderLeftColor:"#9CA3AF",opacity:0.7}}>
                 <div className="pmeta">
                   <span className="tag tag-blue">{fmtFecha(p.fecha)} {fmtHora(p.fecha)}</span>
-                  <span className="tag tag-red">🚫 Tiempo cerrado</span>
+                  <span className="tag tag-red"> Tiempo cerrado</span>
                 </div>
                 <div className="equipos">
                   <span className="eq">{p.equipo1}</span>
@@ -401,7 +401,7 @@ function Perfil({usuario,ahora,preds,reales,locks,onGuardar,onVolver,notif}){
               const pred=preds[KP(usuario,p.id)], real=reales[KR(p.id)];
               const pts=calcularPuntos(pred?.g1,pred?.g2,real?.g1,real?.g2);
               const pc=pts===4?"#059669":pts===3?"#2563EB":pts===2?"#7C3AED":pts===1?"#D97706":"#DC2626";
-              const pl=pts===4?"Marcador exacto 🎯":pts===3?"Diferencia correcta 📐":pts===2?"Empate correcto 🤝":pts===1?"Ganador correcto ✅":"Incorrecto ❌";
+              const pl=pts===4?"Marcador exacto 🎯":pts===3?"Diferencia correcta ":pts===2?"Empate correcto ":pts===1?"Ganador correcto ✅":"Incorrecto ❌";
               return(
                 <div key={p.id} className="pcard" style={{borderLeftColor:pc}}>
                   <div className="pmeta">
@@ -470,7 +470,7 @@ function Admin({ahora,preds,reales,locks,onGuardarReal,onVolver,tabla,notif,toas
     </div>
   );
 
-  const ptabs=[["res","📊 Resultados"],["rank","🏆 Ranking"],["spy","👁️ Predicciones"]];
+  const ptabs=[["res","📊 Resultados"],["rank","🏆 Ranking"],["spy"," Predicciones"]];
   const pf=PARTIDOS.filter(p=>!buscar||p.nombre.toLowerCase().includes(buscar.toLowerCase()));
 
   return(
