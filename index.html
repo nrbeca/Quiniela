@@ -121,7 +121,7 @@ function App(){
     lsSet(kp,val); lsSet(kl,true);
     setPreds(p=>({...p,[kp]:val}));
     setLocks(l=>({...l,[kl]:true}));
-    toast("✅ Predicción guardada y bloqueada");
+    toast(" Predicción guardada y bloqueada");
   }
 
   function guardarReal(id,g1,g2){
@@ -204,7 +204,7 @@ function Inicio({tabla,onPerfil,onAdmin,notif}){
 
         {/* PUNTOS */}
         <div className="card">
-          <h2 className="card-title">📋 Sistema de Puntos</h2>
+          <h2 className="card-title"> Sistema de Puntos</h2>
           <div style={{display:"flex",flexDirection:"column",gap:8}}>
             {[["4 pts","🎯","Marcador exacto","#059669"],
               ["2 pts","","Empate correcto (sin marcador exacto)","#7C3AED"],
@@ -321,7 +321,7 @@ function Perfil({usuario,ahora,preds,reales,locks,onGuardar,onVolver,notif}){
         {/* PENDIENTES */}
         {tab==="pred"&&(
           <>
-            {pendientes.length===0&&cerrados.length===0&&<Empty txt="No hay partidos pendientes ✅"/>}
+            {pendientes.length===0&&cerrados.length===0&&<Empty txt="No hay partidos pendientes "/>}
             {pendientes.map(p=>{
               const tr=tiempoRestante(p.fecha,ahora);
               const inp=inputs[p.id]||{};
